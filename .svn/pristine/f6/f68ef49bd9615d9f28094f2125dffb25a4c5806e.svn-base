@@ -1,0 +1,313 @@
+package com.kkl.kklplus.b2b.vatti.service;
+
+
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
+import com.kkl.kklplus.b2b.vatti.entity.SysLog;
+import com.kkl.kklplus.b2b.vatti.entity.VattiOrderInfo;
+import com.kkl.kklplus.b2b.vatti.http.response.AgendaOrderResponseData;
+import com.kkl.kklplus.b2b.vatti.http.response.OrderInfoResponseData;
+import com.kkl.kklplus.b2b.vatti.http.response.ResponseBody;
+import com.kkl.kklplus.b2b.vatti.mapper.B2BProcesslogMapper;
+import com.kkl.kklplus.b2b.vatti.mapper.SysLogMapper;
+import com.kkl.kklplus.b2b.vatti.mapper.VattiOrderInfoMapper;
+import com.kkl.kklplus.b2b.vatti.mq.sender.B2BOrderMQSender;
+import com.kkl.kklplus.b2b.vatti.utils.QuarterUtils;
+import com.kkl.kklplus.b2b.vatti.utils.VattiUtils;
+import com.kkl.kklplus.entity.b2b.common.B2BProcessFlag;
+import com.kkl.kklplus.entity.b2b.order.B2BWorkcardQtyDaily;
+import com.kkl.kklplus.entity.b2b.pb.MQB2BWorkcardQtyDailyMessage;
+import com.kkl.kklplus.entity.b2bcenter.md.B2BDataSourceEnum;
+import com.kkl.kklplus.entity.b2bcenter.md.B2BShopEnum;
+import com.kkl.kklplus.entity.b2bcenter.pb.MQB2BOrderMessage;
+import com.kkl.kklplus.entity.b2bcenter.rpt.B2BOrderProcesslog;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrder;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrderSearchModel;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrderTransferResult;
+import com.kkl.kklplus.entity.common.MSPage;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import javax.annotation.Resource;
+import java.util.List;
+
+@Service
+@Slf4j
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+public class VattiOrderInfoService {
+
+    @Autowired
+    private B2BOrderMQSender b2BOrderMQSender;
+
+    @Resource
+    private VattiOrderInfoMapper vattiOrderInfoMapper;
+
+    @Resource
+    private SysLogMapper sysLogMapper;
+
+    @Resource
+    private B2BProcesslogMapper b2BProcesslogMapper;
+
+    /**
+     * 添加华帝的工单信息
+     * @param agendaOrders
+     */
+    public void addOrderInfo(List<AgendaOrderResponseData.AgendaOrder> agendaOrders) {
+
+        for(AgendaOrderResponseData.AgendaOrder agendaOrder : agendaOrders){
+            String guid = agendaOrder.getGuid();
+            Long id = vattiOrderInfoMapper.findOrderByGuid(guid);
+            // 判断是否存在该工单
+            if(id == null){
+                B2BOrderProcesslog b2BProcesslog = new B2BOrderProcesslog();
+                b2BProcesslog.preInsert();
+                b2BProcesslog.setInterfaceName(VattiUtils.GETSERVICEORDER);
+                b2BProcesslog.setInfoJson("{\"guid\":\""+guid+"\"}");
+                b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+                b2BProcesslog.setProcessTime(0);
+                b2BProcesslog.setCreateById(1L);
+                b2BProcesslog.setUpdateById(1L);
+                b2BProcesslog.setQuarter(QuarterUtils.getQuarter(b2BProcesslog.getCreateDt()));
+                // 请求获取工单明细
+                ResponseBody<OrderInfoResponseData> responseBody =null;
+                try{
+                    // 记录原始数据
+                    b2BProcesslogMapper.insert(b2BProcesslog);
+                    b2BProcesslog.setResultJson(responseBody.getOriginalJson());
+                    // 判断是否请求成功
+                    if(responseBody != null && responseBody.getErrorCode() != null &&
+                            responseBody.getErrorCode().equals(VattiUtils.SUCCESS_CODE)) {
+                        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_SUCESS.value);
+                        b2BProcesslogMapper.updateProcessFlag(b2BProcesslog);
+                        OrderInfoResponseData orderInfoResponseData = responseBody.getData();
+                        // 判断是否有工单明细
+                        if(orderInfoResponseData != null && orderInfoResponseData.getData() != null &&
+                                orderInfoResponseData.getData().size() > 0 ){
+
+                            VattiOrderInfo vattiOrderInfo = orderInfoResponseData.getData().get(0);
+                            vattiOrderInfo.preInsert();
+                            vattiOrderInfo.setCreateById(1L);
+                            vattiOrderInfo.setUpdateById(1L);
+                            vattiOrderInfo.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+                            vattiOrderInfo.setProcessTime(0);
+                            vattiOrderInfo.setQuarter(QuarterUtils.getQuarter(vattiOrderInfo.getCreateDt()));
+                            String remark = vattiOrderInfo.getRemark() != null ? vattiOrderInfo.getRemark() : "";
+                            remark = remark.replace("null","");
+                            vattiOrderInfo.setRemark(StringUtils.left(remark, 200));
+                            vattiOrderInfoMapper.insertOrderInfo(vattiOrderInfo);
+
+                            MQB2BOrderMessage.B2BOrderMessage.Builder builder = MQB2BOrderMessage.B2BOrderMessage.newBuilder()
+                                    .setId(vattiOrderInfo.getId())
+                                    .setDataSource(B2BDataSourceEnum.VATTI.id)
+                                    .setOrderNo(vattiOrderInfo.getGuid())
+                                    .setShopId(B2BShopEnum.VATTI.id)
+                                    .setUserName(vattiOrderInfo.getNameFirst()+vattiOrderInfo.getNameLast())
+                                    .setUserMobile(vattiOrderInfo.getTelephone())
+                                    .setUserPhone(vattiOrderInfo.getTelephone1() != null ? vattiOrderInfo.getTelephone1():"")
+                                    .setUserProvince(vattiOrderInfo.getRegion())
+                                    .setUserCity(vattiOrderInfo.getCityNo())
+                                    .setUserCounty(vattiOrderInfo.getDistrctNo())
+                                    .setUserAddress(vattiOrderInfo.getStreet())
+                                    .setServiceType(vattiOrderInfo.getProcessType())
+                                    .setWarrantyType(VattiUtils.INWARRANTY)
+                                    .setStatus(1)
+                                    .setIssueBy("")
+                                    .setDescription(vattiOrderInfo.getRemark())
+                                    .setRemarks(vattiOrderInfo.getRemark())
+                                    .setQuarter(vattiOrderInfo.getQuarter());
+                            MQB2BOrderMessage.B2BOrderItem b2BOrderItem = MQB2BOrderMessage.B2BOrderItem.newBuilder()
+                                    .setProductCode(vattiOrderInfo.getKindCode())
+                                    .setProductName("")
+                                    .setProductSpec("")
+                                    .setServiceType(vattiOrderInfo.getProcessType())
+                                    .setWarrantyType(VattiUtils.INWARRANTY)
+                                    .setQty(1)
+                                    .build();
+                            builder.addB2BOrderItem(b2BOrderItem);
+                            MQB2BOrderMessage.B2BOrderMessage b2BOrderMessage = builder.build();
+                            //调用转单队列
+                            b2BOrderMQSender.send(b2BOrderMessage);
+                        }
+                    }else{
+                        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_FAILURE.value);
+                        String error = responseBody.getErrorMsg() != null ? responseBody.getErrorMsg() :"";
+                        error = StringUtils.left(error , 200);
+                        b2BProcesslog.setProcessComment(error);
+                        b2BProcesslogMapper.updateProcessFlag(b2BProcesslog);
+                    }
+                }catch (Exception e){
+                    e.printStackTrace();
+                    log.error("新增工单失败", e.getMessage());
+                    SysLog sysLog = new SysLog();
+                    sysLog.setCreateDt(System.currentTimeMillis());
+                    sysLog.setType(1);
+                    sysLog.setCreateById(1L);
+                    sysLog.setParams(responseBody.getOriginalJson());
+                    String error = e.getMessage();
+                    error = StringUtils.left(error , 200);
+                    sysLog.setException( error );
+                    sysLog.setTitle("新增工单失败");
+                    sysLog.setQuarter(QuarterUtils.getQuarter(sysLog.getCreateDt()));
+                    sysLogMapper.insert(sysLog);
+                }
+            }
+        }
+    }
+
+    public VattiOrderInfo findOrderInfoByGuid(String guid) {
+        return vattiOrderInfoMapper.findOrderInfoByGuid(guid);
+    }
+
+    public List<VattiOrderInfo> findOrdersProcessFlag(List<B2BOrderTransferResult> orderNos) {
+        return vattiOrderInfoMapper.findOrdersProcessFlag(orderNos);
+    }
+
+    @Transactional
+    public void updateTransferResult(List<VattiOrderInfo> wis) {
+        for(VattiOrderInfo orderInfo:wis) {
+            orderInfo.preUpdate();
+            vattiOrderInfoMapper.updateTransferResult(orderInfo);
+        }
+    }
+
+    public MSPage<B2BOrder> getList(B2BOrderSearchModel workcardSearchModel) {
+        if (workcardSearchModel.getPage() != null) {
+            PageHelper.startPage(workcardSearchModel.getPage().getPageNo(), workcardSearchModel.getPage().getPageSize());
+            Page<VattiOrderInfo> orderInfoPage = vattiOrderInfoMapper.getList(workcardSearchModel);
+            Page<B2BOrder> customerPoPage = new Page<>();
+            for(VattiOrderInfo orderInfo:orderInfoPage){
+                B2BOrder customerPo = new B2BOrder();
+                //数据源
+                customerPo.setDataSource(B2BDataSourceEnum.VATTI.id);
+                customerPo.setOrderNo(orderInfo.getGuid());
+                //华帝店铺
+                customerPo.setShopId(B2BShopEnum.VATTI.id);
+                customerPo.setUserName(orderInfo.getNameFirst()+orderInfo.getNameLast());
+                customerPo.setUserMobile(orderInfo.getTelephone());
+                customerPo.setUserPhone(orderInfo.getTelephone1());
+                customerPo.setUserProvince(orderInfo.getRegion());
+                customerPo.setUserCity(orderInfo.getCityNo());
+                customerPo.setUserCounty(orderInfo.getDistrctNo());
+                customerPo.setUserAddress(orderInfo.getStreet());
+                customerPo.setServiceType(orderInfo.getProcessType());
+                customerPo.setWarrantyType(VattiUtils.INWARRANTY);
+                String remark = orderInfo.getRemark()!=null?orderInfo.getRemark():"";
+                remark = remark.replace("null","");
+                remark = StringUtils.left(remark,200);
+                customerPo.setDescription(remark);
+                customerPo.setStatus(1);
+                customerPo.setProcessFlag(orderInfo.getProcessFlag());
+                customerPo.setProcessTime(orderInfo.getProcessTime());
+                customerPo.setProcessComment(orderInfo.getProcessComment());
+                customerPo.setQuarter(orderInfo.getQuarter());
+                //订单项
+                B2BOrder.B2BOrderItem orderItem = new B2BOrder.B2BOrderItem();
+                orderItem.setProductCode(orderInfo.getKindCode());
+                orderItem.setQty(1);
+                orderItem.setB2bWarrantyCode(VattiUtils.INWARRANTY);
+                orderItem.setServiceType(orderInfo.getProcessType());
+                customerPo.getItems().add(orderItem);
+                customerPoPage.add(customerPo);
+            }
+            MSPage<B2BOrder> returnPage = new MSPage<>();
+            returnPage.setPageNo(orderInfoPage.getPageNum());
+            returnPage.setPageSize(orderInfoPage.getPageSize());
+            returnPage.setPageCount(orderInfoPage.getPages());
+            returnPage.setRowCount((int) orderInfoPage.getTotal());
+            returnPage.setList(customerPoPage.getResult());
+            return returnPage;
+        }else {
+            return null;
+        }
+    }
+
+    /**
+     *
+     * @param agendaOrders
+     */
+    public void saveVattiOrder(List<AgendaOrderResponseData.AgendaOrder> agendaOrders){
+        for(AgendaOrderResponseData.AgendaOrder agendaOrder : agendaOrders){
+            String guid = agendaOrder.getGuid();
+            Long id = vattiOrderInfoMapper.findOrderByGuid(guid);
+            // 判断是否存在该工单
+            if(id == null){
+                B2BOrderProcesslog b2BProcesslog = new B2BOrderProcesslog();
+                b2BProcesslog.preInsert();
+                b2BProcesslog.setInterfaceName(VattiUtils.GETSERVICEORDER);
+                b2BProcesslog.setInfoJson("{\"guid\":\""+guid+"\"}");
+                b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+                b2BProcesslog.setProcessTime(0);
+                b2BProcesslog.setCreateById(1L);
+                b2BProcesslog.setUpdateById(1L);
+                b2BProcesslog.setQuarter(QuarterUtils.getQuarter(b2BProcesslog.getCreateDt()));
+                // 请求获取工单明细
+                ResponseBody<OrderInfoResponseData> responseBody =null;
+                try{
+                    // 记录原始数据
+                    b2BProcesslogMapper.insert(b2BProcesslog);
+                    b2BProcesslog.setResultJson(responseBody.getOriginalJson());
+                    // 判断是否请求成功
+                    if(responseBody != null && responseBody.getErrorCode() != null &&
+                            responseBody.getErrorCode().equals(VattiUtils.SUCCESS_CODE)) {
+                        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_SUCESS.value);
+                        b2BProcesslogMapper.updateProcessFlag(b2BProcesslog);
+                        OrderInfoResponseData orderInfoResponseData = responseBody.getData();
+                        VattiOrderInfo vattiOrderInfo = orderInfoResponseData.getData().get(0);
+                        vattiOrderInfo.preInsert();
+                        vattiOrderInfo.setCreateById(1L);
+                        vattiOrderInfo.setUpdateById(1L);
+                        vattiOrderInfo.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+                        vattiOrderInfo.setProcessTime(0);
+                        vattiOrderInfo.setQuarter(QuarterUtils.getQuarter(vattiOrderInfo.getCreateDt()));
+                        vattiOrderInfo.setYyrq(agendaOrder.getZzfld00003j());
+                        vattiOrderInfo.setYysj(agendaOrder.getZzfld00001v());
+                        vattiOrderInfo.setGuid(agendaOrder.getGuid());
+                        vattiOrderInfo.setGmrq(agendaOrder.getZzfld00002y());
+                        vattiOrderInfo.setGmqd(agendaOrder.getZzfld00001m());
+                        vattiOrderInfo.setWarranty(agendaOrder.getZzfld00003h());
+                        vattiOrderInfo.setTelephone(agendaOrder.getTel1Numbr());
+                        vattiOrderInfo.setTelephone1(agendaOrder.getTel2Numbr());
+                        vattiOrderInfo.setFault(agendaOrder.getZzfld00005a());
+                        vattiOrderInfo.setFaultDetial(agendaOrder.getZzfld00005b());
+                        vattiOrderInfo.setTxm(agendaOrder.getZzfld00001r());
+                        vattiOrderInfo.setNameFirst(agendaOrder.getName());
+                        vattiOrderInfo.setRegion(agendaOrder.getZzfld00006y());
+                        vattiOrderInfo.setCityNo(agendaOrder.getZzfld00006z());
+                        vattiOrderInfo.setProcessType(agendaOrder.getProcessType());
+                        vattiOrderInfo.setObjectId(agendaOrder.getObjectId());
+
+                        String remark = vattiOrderInfo.getRemark() != null ? vattiOrderInfo.getRemark() : "";
+                        remark = remark.replace("null","");
+                        vattiOrderInfo.setRemark(StringUtils.left(remark, 200));
+                        vattiOrderInfoMapper.insertOrderInfo(vattiOrderInfo);
+                    }else{
+                        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_FAILURE.value);
+                        String error = responseBody.getErrorMsg() != null ? responseBody.getErrorMsg() :"";
+                        error = StringUtils.left(error , 200);
+                        b2BProcesslog.setProcessComment(error);
+                        b2BProcesslogMapper.updateProcessFlag(b2BProcesslog);
+                    }
+                }catch (Exception e){
+                    e.printStackTrace();
+                    log.error("新增工单失败", e.getMessage());
+                    SysLog sysLog = new SysLog();
+                    sysLog.setCreateDt(System.currentTimeMillis());
+                    sysLog.setType(1);
+                    sysLog.setCreateById(1L);
+                    sysLog.setParams(responseBody.getOriginalJson());
+                    String error = e.getMessage();
+                    error = StringUtils.left(error , 200);
+                    sysLog.setException( error );
+                    sysLog.setTitle("新增工单失败");
+                    sysLog.setQuarter(QuarterUtils.getQuarter(sysLog.getCreateDt()));
+                    sysLogMapper.insert(sysLog);
+                }
+            }
+        }
+    }
+
+}

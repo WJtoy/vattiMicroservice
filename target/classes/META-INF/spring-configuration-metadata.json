@@ -1,0 +1,23 @@
+{
+  "hints": [],
+  "groups": [
+    {
+      "sourceType": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties",
+      "name": "vatti",
+      "type": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties"
+    },
+    {
+      "sourceType": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties",
+      "name": "vatti.data-source-config",
+      "sourceMethod": "getDataSourceConfig()",
+      "type": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties$DataSourceConfig"
+    },
+    {
+      "sourceType": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties",
+      "name": "vatti.okhttp",
+      "sourceMethod": "getOkhttp()",
+      "type": "com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties$OkHttpProperties"
+    }
+  ],
+  "properties": []
+}

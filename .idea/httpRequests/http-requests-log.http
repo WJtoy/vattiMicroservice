@@ -1,0 +1,18 @@
+GET http://localhost:8910/vattiOrderInfo/testJob
+
+<> 2020-09-14T023857.200.json
+
+###
+
+GET http://localhost:8910/vattiOrderInfo/testJob
+
+<> 2020-09-14T023817.200.json
+
+###
+
+GET http://localhost:8910/vattiOrderInfo/testJob
+
+<> 2020-09-14T023736.200.json
+
+###
+

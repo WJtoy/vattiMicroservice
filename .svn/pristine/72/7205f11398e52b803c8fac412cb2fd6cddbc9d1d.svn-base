@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.kkl.kklplus.b2b.vatti.mapper.VattiOrderInfoMapper" >
+
+	<insert id="insertOrderInfo" useGeneratedKeys="true" keyProperty="id">
+		insert into vatti_order_info(
+			guid,
+			appointment_date,
+			appointment_time,
+			buy_type,
+			to_reason_about,
+			is_appointment,
+			canel_reason,
+			follow_up_content,
+			bar_code,
+			number_int,
+			quantity,
+			dispose_result,
+			warranty_type,
+			service_measures,
+			service_mode,
+			service_finish_date,
+			service_finish_time,
+			url_path,
+			failur_phen,
+			failur_reason,
+			service_province,
+			service_city,
+			buyer_date,
+			user_stat_proc,
+			region,
+			city_no,
+			city,
+			process_flag,
+			process_time,
+			process_comment,
+			create_by,
+			create_date,
+			update_by,
+			update_date,
+			quarter,
+			iv_dealer,
+			iv_dealer_2,
+			object_id,
+			process_type,
+			posting_date,
+			stat,
+			concatstatuser,
+			stsma,
+			changed_at,
+			changed_dat,
+			changed_tim,
+			district,
+			street,
+			key_guid,
+			product_category,
+			product_category2,
+			zwill_over_lei,
+			zwill_over_dat,
+			zwill_over_tim,
+			buy_shop,
+			return_result,
+			engineer,
+			changed_by,
+			reason_name,
+			reason_description,
+			information_sources,
+			tel1_number,
+			tel2_number,
+			name
+		)VALUES(
+			#{guid},
+			#{appointmentDate},
+			#{appointmentTime},
+			#{buyType},
+			#{toReasonAbout},
+			#{isAppointment},
+			#{canelReason},
+			#{followUpContent},
+			#{barCode},
+			#{numberInt},
+			#{quantity},
+			#{disposeResult},
+			#{warrantyType},
+			#{serviceMeasures},
+			#{serviceMode},
+			#{serviceFinishDate},
+			#{serviceFinishTime},
+			#{urlPath},
+			#{failurPhen},
+			#{failurReason},
+			#{serviceProvince},
+			#{serviceCity},
+			#{buyerDate},
+			#{userStatProc},
+			#{region},
+			#{cityNo},
+			#{city},
+			#{processFlag},
+			#{processTime},
+			#{processComment},
+			#{createBy},
+			#{createDt},
+			#{updateBy},
+			#{updateDt},
+			#{quarter},
+			#{ivDealer},
+			#{ivDealer2},
+			#{objectId},
+			#{processType},
+			#{postingDate},
+			#{stat},
+			#{concatstatuser},
+			#{stsma},
+			#{changedAt},
+			#{changedDat},
+			#{changedTim},
+			#{district},
+			#{street},
+			#{keyGuid},
+			#{productCategory},
+			#{productCategory2},
+			#{zwillOverLei},
+			#{zwillOverDat},
+			#{zwillOverTim},
+			#{buyShop},
+			#{returnResult},
+			#{engineer},
+			#{changedBy},
+			#{reasonName},
+			#{reasonDescription},
+			#{informationSources},
+			#{tel1Number},
+			#{tel2Number},
+			#{name}
+		)
+	</insert>
+
+
+	<insert id="insertBatchOrderInfo" useGeneratedKeys="true" keyProperty="id">
+		insert into vatti_order_info(
+			guid,
+			appointment_date,
+			appointment_time,
+			buy_type,
+			to_reason_about,
+			is_appointment,
+			canel_reason,
+			follow_up_content,
+			bar_code,
+			number_int,
+			quantity,
+			dispose_result,
+			warranty_type,
+			service_measures,
+			service_mode,
+			service_finish_date,
+			service_finish_time,
+			url_path,
+			failur_phen,
+			failur_reason,
+			service_province,
+			service_city,
+			buyer_date,
+			user_stat_proc,
+			region,
+			city_no,
+			city,
+			process_flag,
+			process_time,
+			process_comment,
+			create_by,
+			create_date,
+			update_by,
+			update_date,
+			quarter,
+			iv_dealer,
+			iv_dealer_2,
+			object_id,
+			process_type,
+			posting_date,
+			stat,
+			concatstatuser,
+			stsma,
+			changed_at,
+			changed_dat,
+			changed_tim,
+			district,
+			street,
+			key_guid,
+			product_category,
+			product_category2,
+			zwill_over_lei,
+			zwill_over_dat,
+			zwill_over_tim,
+			buy_shop,
+			return_result,
+			engineer,
+			changed_by,
+			reason_name,
+			reason_description,
+			information_sources,
+			tel1_number,
+			tel2_number,
+			name
+		)VALUES
+		<foreach collection="list" item="item" index="index" separator=",">
+		(
+			#{item.guid},
+			#{item.appointmentDate},
+			#{item.appointmentTime},
+			#{item.buyType},
+			#{item.toReasonAbout},
+			#{item.isAppointment},
+			#{item.canelReason},
+			#{item.followUpContent},
+			#{item.barCode},
+			#{item.numberInt},
+			#{item.quantity},
+			#{item.disposeResult},
+			#{item.warrantyType},
+			#{item.serviceMeasures},
+			#{item.serviceMode},
+			#{item.serviceFinishDate},
+			#{item.serviceFinishTime},
+			#{item.urlPath},
+			#{item.failurPhen},
+			#{item.failurReason},
+			#{item.serviceProvince},
+			#{item.serviceCity},
+			#{item.buyerDate},
+			#{item.userStatProc},
+			#{item.region},
+			#{item.cityNo},
+			#{item.city},
+			#{item.processFlag},
+			#{item.processTime},
+			#{item.processComment},
+			#{item.createBy},
+			#{item.createDt},
+			#{item.updateBy},
+			#{item.updateDt},
+			#{item.quarter},
+			#{item.ivDealer},
+			#{item.ivDealer2},
+			#{item.objectId},
+			#{item.processType},
+			#{item.postingDate},
+			#{item.stat},
+			#{item.concatstatuser},
+			#{item.stsma},
+			#{item.changedAt},
+			#{item.changedDat},
+			#{item.changedTim},
+			#{item.district},
+			#{item.street},
+			#{item.keyGuid},
+			#{item.productCategory},
+			#{item.productCategory2},
+			#{item.zwillOverLei},
+			#{item.zwillOverDat},
+			#{item.zwillOverTim},
+			#{item.buyShop},
+			#{item.returnResult},
+			#{item.engineer},
+			#{item.changedBy},
+			#{item.reasonName},
+			#{item.reasonDescription},
+			#{item.informationSources},
+			#{item.tel1Number},
+			#{item.tel2Number},
+			#{item.name}
+		)
+		</foreach>
+	</insert>
+
+
+	<select id="findOrderByGuid" resultType="java.lang.Long" >
+		SELECT
+			id
+		FROM
+			vatti_order_info
+		WHERE
+			guid = #{guid}
+		limit 1
+	</select>
+
+
+
+
+	<select id="findOrderInfoByGuid" resultType="com.kkl.kklplus.b2b.vatti.entity.VattiOrderInfo">
+		SELECT
+			region,
+			city_no,
+			process_type,
+			warranty,
+			kind_code,
+			gmrq,
+			gmqd
+		FROM
+			vatti_order_info
+		WHERE
+			guid = #{guid}
+		limit 1
+	</select>
+
+	<select id="findOrdersProcessFlag" resultType="com.kkl.kklplus.b2b.vatti.entity.VattiOrderInfo">
+		SELECT
+		id,
+		guid,
+		process_flag
+		FROM
+		vatti_order_info
+		<where>
+			<if test="orderNos != null and orderNos.size > 0">
+				id in
+				<foreach collection="orderNos" item="o" open="(" close=")" separator=",">
+					#{o.id}
+				</foreach>
+			</if>
+		</where>
+		<if test="orderNos == null or orderNos.size == 0">
+			limit 0
+		</if>
+	</select>
+
+	<update id="updateTransferResult" >
+		UPDATE
+			vatti_order_info
+		SET
+			process_flag = #{processFlag},
+			process_time = process_time+1,
+			<choose>
+				<when test="processFlag == 4">
+					kkl_order_id = #{kklOrderId},
+					kkl_order_no = #{kklOrderNo},
+				</when>
+				<otherwise>
+					process_comment = #{processComment},
+				</otherwise>
+			</choose>
+			update_date = #{updateDt}
+	  	WHERE
+	  		id = #{id}
+	</update>
+
+	<select id="getList" resultType="com.kkl.kklplus.b2b.vatti.entity.VattiOrderInfo">
+		SELECT
+			id,
+			object_id,
+			guid,
+			region,
+			city,
+			district,
+			street,
+			process_type,
+			process_flag,
+			process_time,
+			process_comment,
+			quarter,
+			create_date as 'createDt',
+			update_date as 'updateDt',
+			product_category,
+			product_category2,
+			buy_shop,
+			quantity,
+			buy_type,
+			tel1_number,
+			tel2_number,
+			name,
+			reason_description,
+			information_sources
+		FROM
+		vatti_order_info
+		<where>
+			<choose>
+				<when test="beginCreateDt != null ">
+					<choose>
+						<when test="endCreateDt != null">
+							AND create_date between #{beginCreateDt} and #{endCreateDt}
+						</when>
+						<otherwise>
+							AND create_date >= #{beginCreateDt}
+						</otherwise>
+					</choose>
+				</when>
+				<otherwise>
+					<if test="endCreateDt != null">
+						AND create_date &lt;=  #{endCreateDt}
+					</if>
+				</otherwise>
+			</choose>
+			AND process_flag BETWEEN 0 AND 3
+			<if test="processFlags != null">
+				AND process_flag in
+				<foreach collection="processFlags"  item="processFlag" open="(" close=")" separator=",">
+					#{processFlag.value}
+				</foreach>
+			</if>
+			<if test="userName != null and userName != ''">
+				AND name LIKE CONCAT(#{userName}, '%')
+			</if>
+			<if test="userMobile != null and userMobile != ''">
+				AND telephone LIKE CONCAT(#{userMobile}, '%')
+			</if>
+		</where>
+		ORDER BY
+		create_date
+	</select>
+</mapper>

@@ -1,0 +1,109 @@
+package com.kkl.kklplus.b2b.vatti.http.response;
+
+import com.google.gson.annotations.SerializedName;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class AgendaOrderResponseData extends ResponseData{
+
+    private List<AgendaOrder> data;
+
+    @Data
+    public static class AgendaOrder{
+
+        private String GUID;
+
+        private String IV_DEALER;
+
+        private String IV_DEALER_2;
+
+        private String OBJECT_ID;
+
+        private String PROCESS_TYPE;
+
+        private String POSTING_DATE;
+
+        private String STAT;
+
+        private String CONCATSTATUSER;
+
+        private String STSMA;
+
+        private String CREATED_AT;
+
+        private String CREATED_TIM;
+
+        private String CHANGED_AT;
+
+        private String CHANGED_DAT;
+
+        private String CHANGED_TIM;
+
+        private String ZZFLD00001K;
+
+        private String ZZFLD00001O;
+
+        private String ZZFLD00003J;
+
+        private String ZZFLD00001V;
+
+        private String CHANGED_BY;
+
+        private String ZZFLD000054;
+
+        private String ZZFLD00001R;
+
+        private String ZZFLD00002Y;
+
+        private String ZZFLD00003H;
+
+        private String ZZFLD00003I;
+
+        private String ZZFLD000057;
+
+        private String ZZFLD000059;
+
+        private String ZZFLD00005A;
+
+        private String ZZFLD00005B;
+
+        private String ZZFLD00001Y;
+
+        private String ZZFLD00001Z;
+
+        private String ZZFLD00004J;
+
+        private String ZZFLD000025;
+
+        private String ZZFLD00001M;
+
+        private String ZZFLD00006Y;
+
+        private String ZZFLD00006Z;
+
+        private String NAME;
+
+        private String REGIONTXT;
+
+
+        private String CITY;
+
+        private String DISTRICT;
+
+        private String STREET;
+
+        private String TEL1_NUMBR;
+
+        private String TEL2_NUMBR;
+
+        private String ZWILL_OVER_LEI;
+
+        private String ZWILL_OVER_DAT;
+
+        private String ZWILL_OVER_TIM;
+
+        private String KEY_GUID;
+    }
+}

@@ -1,0 +1,113 @@
+---
+server:
+  port: 18892
+spring:
+  profiles: dev
+  application:
+    name: kklplus-b2b-vatti
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://119.23.43.232:18355/kklplus_b2b_vatti?useUnicode=true&characterEncoding=utf-8&allowMultiQueries=true&useSSL=false
+    username: b2bvatti
+    password: vt.123.b
+    hikari:
+      minimumIdle: 20
+      maximumPoolSize: 50
+      autoCommit: true
+      idleTimeout: 300000
+      poolName: kklplus-web
+      maxLifetime: 1800000
+      connectionTimeout: 600000
+      connectionTestQuery: SELECT 1
+  redis:
+      database: 1
+      host: 127.0.0.1
+      port: 6379
+      #password: 123456
+      timeout: 0
+      pool:
+        max-active: 1000
+        max-wait: -1
+        max-idle: 100
+        min-idle: 0
+  rabbitmq:
+    host: 119.23.43.232
+    port: 37777
+    username: by
+    password: rabbitmq@BY123
+    publisher-confirms: true
+    cache:
+      connection:
+        mode: channel
+    listener:
+      simple:
+        auto-startup: true
+        acknowledge-mode: manual
+        concurrency: 1
+        max-concurrency: 1
+        prefetch: 1
+    template:
+      retry:
+        initial-interval: 5000
+        max-attempts: 3
+        max-interval: 50000
+        multiplier: 1
+eureka:
+  instance:
+    prefer-ip-address: true
+    metadata-map:
+      zone: dev
+      function: kklplus-b2b-vatti
+  client:
+    serviceUrl:
+      defaultZone: http://dev:dev.123@192.168.1.162:8800/eureka/
+    healthcheck:
+      enabled: true
+info:
+  app:
+    name: ${spring.application.name}
+    desc: B2B Vatti服务
+  version: '0.0.1'
+management:
+  security:
+    enabled: false
+    roles: SUPERUSER
+mybatis:
+  type-aliases-package: com.kkl.kklplus.entity.vatti
+  mapper-locations: classpath*:/mapper/**/*Mapper.xml
+  configuration:
+    cache-enabled: true
+    map-underscore-to-camel-case: true
+logging:
+  level:
+    org.mybatis: debug
+    com.kkl.kklplus: debug
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+  support-methods-arguments: true
+  params: count=countSql
+vatti:
+  appid: vattiTest
+  appsecret: 83d46143f0bebee97929457dbc4e681a
+  methods[0]: /vatti/order
+  okhttp:
+    connect-timeout: 10
+    read-timeout: 10
+    write-timeout: 10
+    ping-interval: 0
+    retry-on-connection-failure: true
+  data-source-config:
+    ###测试数据，正式地址及appid、appsecret待华帝提供
+    request-main-url: http://openapiqas.vatti.com.cn/
+    appid: 919-9074-cba1-8f3
+    appsecret: b1-037b6-495b
+    ## 下列三个参数测试环境可以不填，正式环境待华帝提供
+#    companyId:
+#    ivDealer2:
+#    userId:
+    ### 抓单开关
+    scheduleEnabled: false
+    ### 自动转单开关
+    orderMqEnabled: false

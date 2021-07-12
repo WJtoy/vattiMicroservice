@@ -1,0 +1,230 @@
+package com.kkl.kklplus.b2b.vatti.controller;
+
+import com.google.gson.Gson;
+import com.kkl.kklplus.b2b.vatti.entity.VattiOrderInfo;
+import com.kkl.kklplus.b2b.vatti.http.command.OperationCommand;
+import com.kkl.kklplus.b2b.vatti.http.config.B2BVattiProperties;
+import com.kkl.kklplus.b2b.vatti.http.request.VattiOrderParam;
+import com.kkl.kklplus.b2b.vatti.http.response.AgendaOrderResponseData;
+import com.kkl.kklplus.b2b.vatti.http.response.ResponseBody;
+import com.kkl.kklplus.b2b.vatti.http.utils.OkHttpUtils;
+import com.kkl.kklplus.b2b.vatti.service.B2BProcesslogService;
+import com.kkl.kklplus.b2b.vatti.service.SysLogService;
+import com.kkl.kklplus.b2b.vatti.service.VattiOrderInfoService;
+import com.kkl.kklplus.b2b.vatti.utils.VattiUtils;
+import com.kkl.kklplus.common.exception.MSErrorCode;
+import com.kkl.kklplus.common.response.MSResponse;
+import com.kkl.kklplus.entity.b2b.common.B2BProcessFlag;
+import com.kkl.kklplus.entity.b2b.order.B2BWorkcardQtyDaily;
+import com.kkl.kklplus.entity.b2b.pb.MQB2BWorkcardQtyDailyMessage;
+import com.kkl.kklplus.entity.b2bcenter.md.B2BDataSourceEnum;
+import com.kkl.kklplus.entity.b2bcenter.rpt.B2BOrderProcesslog;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrder;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrderSearchModel;
+import com.kkl.kklplus.entity.b2bcenter.sd.B2BOrderTransferResult;
+import com.kkl.kklplus.entity.common.MSPage;
+import com.kkl.kklplus.utils.QuarterUtils;
+import lombok.extern.slf4j.Slf4j;
+import okhttp3.HttpUrl;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@Slf4j
+@RestController
+@RequestMapping("/vattiOrderInfo")
+public class VattiOrderInfoController {
+
+    @Autowired
+    private B2BProcesslogService b2BProcesslogService;
+
+    @Autowired
+    private VattiOrderInfoService vattiOrderInfoService;
+
+    @Autowired
+    private SysLogService sysLogService;
+
+
+
+    @Autowired
+    private B2BVattiProperties tooneProperties;
+
+    @Autowired
+    private OkHttpUtils okHttpUtils;
+
+    //@Scheduled(cron = "0 */10 * * * ?")
+    public void vattiJob() {
+        B2BVattiProperties.DataSourceConfig dataSourceConfig =
+                tooneProperties.getDataSourceConfig();
+        if (!dataSourceConfig.getScheduleEnabled()) {
+            return;
+        }
+        String url = dataSourceConfig.getRequestMainUrl().concat("/").concat(OperationCommand.OperationCode.TODOLIST.apiUrl);
+        HttpUrl.Builder urlBuilder =HttpUrl.parse(url).newBuilder();
+        urlBuilder.addQueryParameter("companyId", dataSourceConfig.getCompanyId());
+        urlBuilder.addQueryParameter("ivDealer2", dataSourceConfig.getIvDealer2());
+        urlBuilder.addQueryParameter("userId", dataSourceConfig.getUserId());
+        ResponseBody<AgendaOrderResponseData> responseBody =
+                okHttpUtils.getSyncGenericNew(urlBuilder.build(),AgendaOrderResponseData.class);
+        B2BOrderProcesslog b2BProcesslog = new B2BOrderProcesslog();
+        b2BProcesslog.preInsert();
+        b2BProcesslog.setInterfaceName(OperationCommand.OperationCode.TODOLIST.apiUrl);
+        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+        b2BProcesslog.setProcessTime(0);
+        b2BProcesslog.setCreateById(1L);
+        b2BProcesslog.setUpdateById(1L);
+        b2BProcesslog.setQuarter(QuarterUtils.getQuarter(b2BProcesslog.getCreateDate()));
+        b2BProcesslogService.insert(b2BProcesslog);
+        b2BProcesslog.setResultJson(responseBody.getOriginalJson());
+        if(responseBody != null && responseBody.getErrorCode() != null &&
+                responseBody.getErrorCode().equals(VattiUtils.SUCCESS_CODE)){
+            b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_SUCESS.value);
+            b2BProcesslogService.updateProcessFlag(b2BProcesslog);
+            AgendaOrderResponseData agendaOrder = responseBody.getData();
+            if(agendaOrder != null && agendaOrder.getData() != null && agendaOrder.getData().size() > 0){
+                vattiOrderInfoService.addOrderInfo(agendaOrder.getData());
+            }
+        }else{
+            b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_FAILURE.value);
+            b2BProcesslog.setProcessComment(responseBody.getErrorMsg());
+            b2BProcesslogService.updateProcessFlag(b2BProcesslog);
+        }
+
+    }
+    @PostMapping("/getList")
+    public MSResponse<MSPage<B2BOrder>> getList(@RequestBody B2BOrderSearchModel workcardSearchModel) {
+        Gson gson = new Gson();
+        try {
+            MSPage<B2BOrder> returnPage = vattiOrderInfoService.getList(workcardSearchModel);
+            return new MSResponse<>(MSErrorCode.SUCCESS, returnPage);
+        } catch (Exception e) {
+            log.error("查询工单失败", e.getMessage());
+            sysLogService.insert(1L,gson.toJson(workcardSearchModel),
+                    "查询工单失败：" + e.getMessage(),
+                    "查询工单失败", VattiUtils.ORDERLIST, VattiUtils.REQUESTMETHOD);
+            return new MSResponse<>(new MSErrorCode(1000, StringUtils.left(e.getMessage(),200)));
+        }
+    }
+    /**
+     * 检查工单是否可以转换
+     * @param orderNos
+     * @return
+     */
+    @PostMapping("/checkWorkcardProcessFlag")
+    public MSResponse checkWorkcardProcessFlag(@RequestBody List<B2BOrderTransferResult> orderNos){
+        try {
+            if(orderNos == null){
+                return new MSResponse(new MSErrorCode(1000, "参数错误，工单编号不能为空"));
+            }
+            //查询出对应工单的状态
+            List<VattiOrderInfo> orderInfos = vattiOrderInfoService.findOrdersProcessFlag(orderNos);
+            if(orderInfos == null){
+                return new MSResponse(MSErrorCode.FAILURE);
+            }
+            for (VattiOrderInfo orderInfo : orderInfos) {
+                if (orderInfo.getProcessFlag() != null && orderInfo.getProcessFlag() == B2BProcessFlag.PROCESS_FLAG_SUCESS.value) {
+                    return new MSResponse(new MSErrorCode(1000, orderInfo.getGuid()+"工单已经转换成功,不能重复转换"));
+                }
+            }
+            return new MSResponse(MSErrorCode.SUCCESS);
+        }catch (Exception e){
+            log.error("检查工单失败", e.getMessage());
+            sysLogService.insert(1L,new Gson().toJson(orderNos),"检查工单失败：" + e.getMessage(),
+                    "检查工单失败",VattiUtils.CHECKPROCESSFLAG, VattiUtils.REQUESTMETHOD);
+            return new MSResponse(new MSErrorCode(1000, StringUtils.left(e.getMessage(),200)));
+        }
+    }
+
+        @PostMapping("/updateTransferResult")
+    public MSResponse updateTransferResult(@RequestBody List<B2BOrderTransferResult> workcardTransferResults) {
+        try {
+            // 将List转化为Map 以b2bOrderNO为键
+            Map<String, List<B2BOrderTransferResult>> collect =
+                    workcardTransferResults.stream().collect(Collectors.groupingBy(B2BOrderTransferResult::getB2bOrderNo));
+            //查询出需要转换的工单
+            List<VattiOrderInfo> orderInfos = vattiOrderInfoService.findOrdersProcessFlag(workcardTransferResults);
+            //用来存放各个数据源转换成功的数量
+            int count = 0;
+            //存放需要转换的工单集合
+            List<VattiOrderInfo> wis = new ArrayList<>();
+            for (VattiOrderInfo vattiOrderInfo : orderInfos) {
+                //如果工单为转换成功的才存放进工单集合
+                if (vattiOrderInfo.getProcessFlag() != B2BProcessFlag.PROCESS_FLAG_SUCESS.value) {
+                    List<B2BOrderTransferResult> transferResults = collect.get(vattiOrderInfo.getGuid());
+                    if (transferResults != null && transferResults.size() > 0) {
+                        B2BOrderTransferResult bOrderTransferResult = transferResults.get(0);
+                        //成功转换的才计算
+                        if (bOrderTransferResult.getProcessFlag() == B2BProcessFlag.PROCESS_FLAG_SUCESS.value) {
+                            count++;
+                        }
+                        vattiOrderInfo.setProcessFlag(bOrderTransferResult.getProcessFlag());
+                        vattiOrderInfo.setOrderId(bOrderTransferResult.getOrderId());
+                        vattiOrderInfo.setUpdateDt(bOrderTransferResult.getUpdateDt());
+                        vattiOrderInfo.setProcessComment(bOrderTransferResult.getProcessComment());
+                        wis.add(vattiOrderInfo);
+                    }
+                }
+            }
+            vattiOrderInfoService.updateTransferResult(wis);
+            return new MSResponse(MSErrorCode.SUCCESS);
+        } catch (Exception e) {
+            log.error("工单转换失败", e.getMessage());
+            sysLogService.insert(1L, new Gson().toJson(workcardTransferResults),
+                    "工单转换失败：" + e.getMessage(),
+                    "工单转换失败", VattiUtils.UPDATETRANSFERRESULT, VattiUtils.REQUESTMETHOD);
+            return new MSResponse(new MSErrorCode(1000, StringUtils.left(e.getMessage(),200)));
+        }
+    }
+
+    @GetMapping("/testJob")
+    public MSResponse testJob(){
+        vattiOrder();
+        return new MSResponse(MSErrorCode.SUCCESS);
+    }
+
+
+    /**
+     *
+     */
+    @PostMapping("/vattiOrder")
+    public MSResponse vattiOrder() {
+        B2BVattiProperties.DataSourceConfig dataSourceConfig =
+                tooneProperties.getDataSourceConfig();
+        if (!dataSourceConfig.getScheduleEnabled()) {
+            return new MSResponse(MSErrorCode.FAILURE);
+        }
+        String url = dataSourceConfig.getRequestMainUrl().concat("/").concat(OperationCommand.OperationCode.TODOLIST.apiUrl);
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(url).newBuilder();
+        ResponseBody<AgendaOrderResponseData> responseBody =
+                okHttpUtils.getSyncGenericNew(urlBuilder.build(),AgendaOrderResponseData.class);
+        B2BOrderProcesslog b2BProcesslog = new B2BOrderProcesslog();
+        b2BProcesslog.preInsert();
+        b2BProcesslog.setInterfaceName(OperationCommand.OperationCode.TODOLIST.apiUrl);
+        b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_ACCEPT.value);
+        b2BProcesslog.setProcessTime(0);
+        b2BProcesslog.setCreateById(1L);
+        b2BProcesslog.setUpdateById(1L);
+        b2BProcesslog.setQuarter(QuarterUtils.getQuarter(b2BProcesslog.getCreateDate()));
+        b2BProcesslogService.insert(b2BProcesslog);
+        b2BProcesslog.setResultJson(responseBody.getOriginalJson());
+        if(responseBody != null && responseBody.getErrorCode() != null && responseBody.getErrorCode().equals(VattiUtils.SUCCESS_CODE)){
+            b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_SUCESS.value);
+            b2BProcesslogService.updateProcessFlag(b2BProcesslog);
+            AgendaOrderResponseData agendaOrder = responseBody.getData();
+            if(agendaOrder != null && agendaOrder.getData() != null && agendaOrder.getData().size() > 0){
+                vattiOrderInfoService.saveVattiOrder(agendaOrder.getData());
+            }
+        }else{
+            b2BProcesslog.setProcessFlag(B2BProcessFlag.PROCESS_FLAG_FAILURE.value);
+            b2BProcesslog.setProcessComment(responseBody.getErrorMsg());
+            b2BProcesslogService.updateProcessFlag(b2BProcesslog);
+        }
+        return new MSResponse(MSErrorCode.SUCCESS);
+    }
+
+}
